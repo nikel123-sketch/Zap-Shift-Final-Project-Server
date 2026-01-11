@@ -49,12 +49,7 @@ async function run() {
     // parcels post api--
     app.post('/parcels', async(req,res)=>{
       const parcel=req.body;
-      const result =await parcelscoll.insertOne(parcel);
-      res.send(result)
-    })
-    // parcels post api--
-    app.post('/parcels', async(req,res)=>{
-      const parcel=req.body;
+      parcel.createdAt=new Date();
       const result =await parcelscoll.insertOne(parcel);
       res.send(result)
     })
