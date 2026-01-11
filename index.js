@@ -52,12 +52,7 @@ async function run() {
       const result =await parcelscoll.insertOne(parcel);
       res.send(result)
     })
-    // parcels post api--
-    app.post('/parcels', async(req,res)=>{
-      const parcel=req.body;
-      const result =await parcelscoll.insertOne(parcel);
-      res.send(result)
-    })
+    
 
     await client.db("admin").command({ ping: 1 });
     console.log(
