@@ -5,7 +5,12 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+
 const port = process.env.PORT || 5000;
+
+// stripe---
+const stripe = require("stripe")(process.env.DB_STRIPE);
+
 
 // madilware---
 app.use(express.json());
@@ -71,6 +76,39 @@ async function run() {
         const result =await parcelscoll.findOne(query);
         res.send(result)
       })
+
+
+      // payment stripe post api----
+     app.post("/create-checkout-session", async (req,res)=>{
+      
+      const parcelinfo=req.body;
+      const amount =parseInt(parcelinfo.cost)*100;
+      const session = await stripe.checkout.sessions.create({
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              unit_amount: amount,
+              product_data: {
+                name: parcelinfo.parcelName,
+                description:
+                  "The products description, meant to be displayable to the customer",
+              },
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        customer_email: parcelinfo.SanderEmail,
+        metadata: {
+          parcelId: parcelinfo.parcelId,
+        },
+        success_url: `${process.env.SITE_DOMAIN}/dasbord/payment-success`,
+        cancel_url: `${process.env.SITE_DOMAIN}/dasbord/payment-cancel`,
+      });
+      console.log(session)
+      res.send({url:session.url})
+     });
     
 
     await client.db("admin").command({ ping: 1 });
