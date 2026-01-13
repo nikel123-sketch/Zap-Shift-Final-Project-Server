@@ -132,11 +132,12 @@ async function run() {
           },
         ],
         mode: "payment",
-        metadata:{
-          parcelId:parcelinfo.parcelId,
+        customer_email: parcelinfo.SanderEmail,
+        metadata: {
+          parcelId: parcelinfo.parcelId,
         },
-        success_url: `${process.env.SITE_DOMAIN}/dasbord/payment-success`,
-        cancel_url: `${process.env.SITE_DOMAIN}/dasbord/payment-cancel`,
+        success_url: `${process.env.SITE_DOMAIN}/dasbord/PaySuccess?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.SITE_DOMAIN}/dasbord/PayCancel`,
       });
 
       console.log(session)
