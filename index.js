@@ -144,6 +144,34 @@ async function run() {
       res.send({url:session.url})
     });
 
+
+    // payment pacth check and api--
+    app.patch('/paymentSuccess',async(req,res)=>{
+      const sessionId=req.query.session_id;
+    
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      if(session.payment_status==='paid'){
+        const id =session.metadata.parcelId;
+
+        const query={_id:new ObjectId(id)}
+        const update = {
+          $set: {
+            paymentStatus:'paid',
+          },
+        };
+        const result =await parcelscoll.updateOne(query,update)
+        // const status=session.status;
+        // const amount = session.presentment_details.presentment_amount;
+        // const currency = session.presentment_details.presentment_currency;
+        // const email = session.customer_details.email;
+        // const name = session.customer_details.name;
+        // const country = session.customer_details.address.country;
+        res.send(result);
+        console.log(session)
+      }
+      
+    })
+
    
     
     
