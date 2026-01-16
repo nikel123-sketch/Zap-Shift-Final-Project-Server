@@ -16,6 +16,17 @@ const stripe = require("stripe")(process.env.DB_STRIPE);
 app.use(express.json());
 app.use(cors());
 
+
+
+// traking id ---
+const crypto=require('crypto');
+function generateTrackingId(){
+  const prefix='PRCL';
+  const date=new Date().toISOString().slice(0,10).replace(/-/g,'');
+  const random=crypto.randomBytes(3).toString('hex').toUpperCase();
+  return `${prefix}-${date}-${random}`
+}
+
 // mongodb uri---
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.jquttsn.mongodb.net/?appName=Cluster0`;
 
@@ -36,6 +47,7 @@ async function run() {
     // db----
     const db=client.db('Zap_Shift_Final_Project_DB')
     const parcelscoll=db.collection('parcels')
+    const paymentHistry=db.collection('paymenthistry')
     
     // all api here-----
 
@@ -135,6 +147,7 @@ async function run() {
         customer_email: parcelinfo.SanderEmail,
         metadata: {
           parcelId: parcelinfo.parcelId,
+          parcelName: parcelinfo.parcelName,
         },
         success_url: `${process.env.SITE_DOMAIN}/dasbord/PaySuccess?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.SITE_DOMAIN}/dasbord/PayCancel`,
@@ -157,17 +170,28 @@ async function run() {
         const update = {
           $set: {
             paymentStatus:'paid',
+            trakingId:generateTrackingId()
           },
         };
         const result =await parcelscoll.updateOne(query,update)
-        // const status=session.status;
-        // const amount = session.presentment_details.presentment_amount;
-        // const currency = session.presentment_details.presentment_currency;
-        // const email = session.customer_details.email;
-        // const name = session.customer_details.name;
-        // const country = session.customer_details.address.country;
-        res.send(result);
-        console.log(session)
+
+        const paymentinfo = {
+          amount: session.amount_total / 100,
+          currency: session.currency,
+          customerEmail: session.customer_email,
+          parcelId: session.metadata.parcelId,
+          parcelName: session.metadata.parcelName,
+          transactionId: session.payment_intent,
+          paymentStatus: session.payment_status,
+          paidAd:new Date(),
+          
+        };
+        if(session.payment_status==='paid'){
+          const paymrntresult = await paymentHistry.insertOne(paymentinfo)
+          res.send({ sucess: true, modifyparcel: paymrntresult });
+        }
+       
+        // console.log(session)
       }
       
     })
