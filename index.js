@@ -165,12 +165,12 @@ async function run() {
       const session = await stripe.checkout.sessions.retrieve(sessionId);
       if(session.payment_status==='paid'){
         const id =session.metadata.parcelId;
-
+        const trackingId = generateTrackingId();
         const query={_id:new ObjectId(id)}
         const update = {
           $set: {
-            paymentStatus:'paid',
-            trakingId:generateTrackingId()
+            paymentStatus: "paid",
+            trackingId: trackingId,
           },
         };
         const result =await parcelscoll.updateOne(query,update)
@@ -183,15 +183,20 @@ async function run() {
           parcelName: session.metadata.parcelName,
           transactionId: session.payment_intent,
           paymentStatus: session.payment_status,
-          paidAd:new Date(),
+          paidAt:new Date(),
           
         };
         if(session.payment_status==='paid'){
           const paymrntresult = await paymentHistry.insertOne(paymentinfo)
-          res.send({ sucess: true, modifyparcel: paymrntresult });
+          res.send({
+            sucess: true,
+            transactionId: session.payment_intent,
+            trackingId: trackingId,
+            modifyparcel: paymrntresult,
+          });
         }
        
-        // console.log(session)
+        console.log(result)
       }
       
     })
