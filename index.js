@@ -163,6 +163,20 @@ async function run() {
       const sessionId=req.query.session_id;
     
       const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+      // ----
+      const transactionId=session.payment_intent;
+      const query={transactionId:transactionId}
+      const paymentExist=await paymentHistry.findOne(query);
+      console.log(paymentExist)
+      if (paymentExist) {
+        return res.send({
+          message: "already exist",
+          transactionId,
+          trackingId: paymentExist.trackingId,
+        });
+      }
+
       if(session.payment_status==='paid'){
         const id =session.metadata.parcelId;
         const trackingId = generateTrackingId();
@@ -183,8 +197,8 @@ async function run() {
           parcelName: session.metadata.parcelName,
           transactionId: session.payment_intent,
           paymentStatus: session.payment_status,
-          paidAt:new Date(),
-          
+          paidAt: new Date(),
+          trackingId: trackingId,
         };
         if(session.payment_status==='paid'){
           const paymrntresult = await paymentHistry.insertOne(paymentinfo)
