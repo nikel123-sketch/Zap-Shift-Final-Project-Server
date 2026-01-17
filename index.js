@@ -90,39 +90,9 @@ async function run() {
       })
 
 
-      // payment stripe post api----
+      
 
-      
-    //  app.post("/create-checkout-session", async (req,res)=>{
-      
-    //   const parcelinfo=req.body;
-    //   const amount =parseInt(parcelinfo.cost)*100;
-    //   const session = await stripe.checkout.sessions.create({
-    //     line_items: [
-    //       {
-    //         price_data: {
-    //           currency: "usd",
-    //           unit_amount: amount,
-    //           product_data: {
-    //             name: parcelinfo.parcelName,
-    //             description:
-    //               "The products description, meant to be displayable to the customer",
-    //           },
-    //         },
-    //         quantity: 1,
-    //       },
-    //     ],
-    //     mode: "payment",
-    //     customer_email: parcelinfo.SanderEmail,
-    //     metadata: {
-    //       parcelId: parcelinfo.parcelId,
-    //     },
-    //     success_url: `${process.env.SITE_DOMAIN}/dasbord/payment-success`,
-    //     cancel_url: `${process.env.SITE_DOMAIN}/dasbord/payment-cancel`,
-    //   });
-    //   console.log(session)
-    //   res.send({url:session.url})
-    //  });
+      // payment stripe post api----
 
     app.post("/create-checkout-session",async(req,res)=>{
       const parcelinfo=req.body;
@@ -216,7 +186,17 @@ async function run() {
     })
 
    
-    
+    // payment relate api ----
+    app.get("/paymenthistry" ,async (req,res)=>{
+      const email=req.query.email;
+      const query={}
+      if(email){
+        query.customerEmail=email
+      }
+      const cursor=paymentHistry.find(query);
+      const result=await cursor.toArray();
+      res.send(result)
+    });
     
 
     await client.db("admin").command({ ping: 1 });
