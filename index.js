@@ -11,20 +11,46 @@ const port = process.env.PORT || 5000;
 // stripe---
 const stripe = require("stripe")(process.env.DB_STRIPE);
 
+// fb token---
+const admin = require("firebase-admin");
+
+const serviceAccount = require("./zap-shift-final-project-token-key.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
 
 // madilware---
 app.use(express.json());
 app.use(cors());
+const verifyFbToken = async (req, res, next) => {
+  // console.log(req.headers.authorization);
+  const fbToken = req.headers.authorization;
+  if (!fbToken) {
+    return res.status(401).send({ message: "unauthorized access token" });
+  }
+  try{
+    const idToken=fbToken.split(' ')[1];
+    // console.log(idToken)
+    const decoded=await admin.auth().verifyIdToken(idToken)
+    console.log('decoded token',decoded)
+    req.decoded_email=decoded.email;
 
-
+    next();
+  }
+  catch(err){
+    return res.status(401).send({ message: "unauthorized access token" });
+  }
+  
+};
 
 // traking id ---
-const crypto=require('crypto');
-function generateTrackingId(){
-  const prefix='PRCL';
-  const date=new Date().toISOString().slice(0,10).replace(/-/g,'');
-  const random=crypto.randomBytes(3).toString('hex').toUpperCase();
-  return `${prefix}-${date}-${random}`
+const crypto = require("crypto");
+function generateTrackingId() {
+  const prefix = "PRCL";
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const random = crypto.randomBytes(3).toString("hex").toUpperCase();
+  return `${prefix}-${date}-${random}`;
 }
 
 // mongodb uri---
@@ -45,58 +71,54 @@ async function run() {
     await client.connect();
 
     // db----
-    const db=client.db('Zap_Shift_Final_Project_DB')
-    const parcelscoll=db.collection('parcels')
-    const paymentHistry=db.collection('paymenthistry')
-    
+    const db = client.db("Zap_Shift_Final_Project_DB");
+    const parcelscoll = db.collection("parcels");
+    const paymentHistry = db.collection("paymenthistry");
+
     // all api here-----
 
     // parcels get api---
-    app.get('/parcels', async(req,res)=>{
-      const query={};
-      const {email}=req.query;
-      if(email){
+    app.get("/parcels", async (req, res) => {
+      const query = {};
+      const { email } = req.query;
+      if (email) {
         query.SanderEmail = email;
       }
-      const cursor=parcelscoll.find(query);
-      const result=await cursor.toArray();
-      res.send(result)
-    })
-    
+      const cursor = parcelscoll.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
     // parcels post api--
-    app.post('/parcels', async(req,res)=>{
-      const parcel=req.body;
-      parcel.createdAt=new Date();
-      const result =await parcelscoll.insertOne(parcel);
-      res.send(result)
-    })
+    app.post("/parcels", async (req, res) => {
+      const parcel = req.body;
+      parcel.createdAt = new Date();
+      const result = await parcelscoll.insertOne(parcel);
+      res.send(result);
+    });
 
     // parcel delete api---
-    app.delete('/parcels/:id',async(req,res)=>{
-      const id=req.params.id;
-      const query={_id:new ObjectId(id)};
-     
-        const result = await parcelscoll.deleteOne(query);
-        res.send(result);
-      
-       })
+    app.delete("/parcels/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
 
-      //  pay parcel get api---
-      app.get('/parcels/:id', async(req,res)=>{
-        const id=req.params.id;
-        const query={_id:new ObjectId(id)}
-        const result =await parcelscoll.findOne(query);
-        res.send(result)
-      })
+      const result = await parcelscoll.deleteOne(query);
+      res.send(result);
+    });
 
+    //  pay parcel get api---
+    app.get("/parcels/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await parcelscoll.findOne(query);
+      res.send(result);
+    });
 
-      
+    // payment stripe post api----
 
-      // payment stripe post api----
-
-    app.post("/create-checkout-session",async(req,res)=>{
-      const parcelinfo=req.body;
-      const amount=parseInt(parcelinfo.cost)*100;
+    app.post("/create-checkout-session", async (req, res) => {
+      const parcelinfo = req.body;
+      const amount = parseInt(parcelinfo.cost) * 100;
       const session = await stripe.checkout.sessions.create({
         line_items: [
           {
@@ -123,22 +145,21 @@ async function run() {
         cancel_url: `${process.env.SITE_DOMAIN}/dasbord/PayCancel`,
       });
 
-      console.log(session)
-      res.send({url:session.url})
+      console.log(session);
+      res.send({ url: session.url });
     });
 
-
     // payment pacth check and api--
-    app.patch('/paymentSuccess',async(req,res)=>{
-      const sessionId=req.query.session_id;
-    
+    app.patch("/paymentSuccess", async (req, res) => {
+      const sessionId = req.query.session_id;
+
       const session = await stripe.checkout.sessions.retrieve(sessionId);
 
       // ----
-      const transactionId=session.payment_intent;
-      const query={transactionId:transactionId}
-      const paymentExist=await paymentHistry.findOne(query);
-      console.log(paymentExist)
+      const transactionId = session.payment_intent;
+      const query = { transactionId: transactionId };
+      const paymentExist = await paymentHistry.findOne(query);
+      console.log(paymentExist);
       if (paymentExist) {
         return res.send({
           message: "already exist",
@@ -147,17 +168,17 @@ async function run() {
         });
       }
 
-      if(session.payment_status==='paid'){
-        const id =session.metadata.parcelId;
+      if (session.payment_status === "paid") {
+        const id = session.metadata.parcelId;
         const trackingId = generateTrackingId();
-        const query={_id:new ObjectId(id)}
+        const query = { _id: new ObjectId(id) };
         const update = {
           $set: {
             paymentStatus: "paid",
             trackingId: trackingId,
           },
         };
-        const result =await parcelscoll.updateOne(query,update)
+        const result = await parcelscoll.updateOne(query, update);
 
         const paymentinfo = {
           amount: session.amount_total / 100,
@@ -170,8 +191,8 @@ async function run() {
           paidAt: new Date(),
           trackingId: trackingId,
         };
-        if(session.payment_status==='paid'){
-          const paymrntresult = await paymentHistry.insertOne(paymentinfo)
+        if (session.payment_status === "paid") {
+          const paymrntresult = await paymentHistry.insertOne(paymentinfo);
           res.send({
             sucess: true,
             transactionId: session.payment_intent,
@@ -179,32 +200,33 @@ async function run() {
             modifyparcel: paymrntresult,
           });
         }
-       
-        console.log(result)
-      }
-      
-    })
 
-   
-    // payment relate api ----
-    app.get("/paymenthistry" ,async (req,res)=>{
-      const email=req.query.email;
-      const query={}
-      if(email){
-        query.customerEmail=email
+        console.log(result);
       }
-      const cursor=paymentHistry.find(query);
-      const result=await cursor.toArray();
-      res.send(result)
     });
 
+    // payment relate api ----
+    app.get("/paymenthistry", verifyFbToken, async (req, res) => {
+      // console.log(req.headers);
+      const email = req.query.email;
+      const query = {};
 
-    
-    
+      if (email) {
+        query.customerEmail = email;
+        
+        // check fb  token verify email adderss--
+        if(email !== req.decoded_email){
+          return res.status(403).send({message:'forbiden access'})
+        }
+      }
+      const cursor = paymentHistry.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
+      "Pinged your deployment. You successfully connected to MongoDB!",
     );
   } finally {
   }
